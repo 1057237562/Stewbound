@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build
+dist/
+build/
+*.log
+
+# Local storage
+*.save
+*.dat
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Test files
+test.html

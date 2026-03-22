@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Terraria</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-overlay">
+            <div id="minimap">
+                <canvas id="minimap-canvas" width="150" height="112"></canvas>
+                <div id="minimap-player"></div>
+            </div>
+            <div id="health-bar">
+                <div id="health-fill"></div>
+            </div>
+            <div id="mana-bar">
+                <div id="mana-fill"></div>
+            </div>
+            <div id="hotbar"></div>
+            <div id="world-info">
+                <div id="time-display">Day 1 - 12:00 PM</div>
+                <div id="position-display">X: 0 Y: 0</div>
+            </div>
+            <div id="inventory">
+                <h3 style="color: white; margin-bottom: 10px;">Inventory</h3>
+                <div id="inventory-grid"></div>
+            </div>
+            <div id="instructions">
+                WASD - Move | SPACE - Jump<br>
+                Left Click - Mine/Attack<br>
+                Right Click - Place Block<br>
+                1-5 - Select Slot<br>
+                E - Open Inventory<br>
+                ESC - Pause
+            </div>
+            <div id="pause-menu">
+                <h2>PAUSED</h2>
+                <button id="btn-resume">Resume</button>
+                <button id="btn-save">Save & Exit</button>
+                <button id="btn-quit">Quit to Menu</button>
+            </div>
+            <div id="loading-overlay">
+                <div id="loading-content">
+                    <h2>Generating World...</h2>
+                    <div id="loading-bar-container">
+                        <div id="loading-bar-fill"></div>
+                    </div>
+                    <div id="loading-message">Initializing...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="assets/js/game.js"></script>
+    <script>
+        // Block right-click context menu
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>
