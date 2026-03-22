@@ -144,6 +144,50 @@ body {
     pointer-events: none;
 }
 
+/* Full Map */
+#fullmap {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80vw;
+    height: 80vh;
+    background: rgba(0, 0, 0, 0.95);
+    border: 3px solid #888;
+    border-radius: 10px;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    pointer-events: auto;
+    z-index: 30;
+}
+
+#fullmap-canvas {
+    max-width: 95%;
+    max-height: 90%;
+    image-rendering: pixelated;
+}
+
+#fullmap-player {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #00ff00;
+    border: 2px solid #fff;
+    border-radius: 2px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+#fullmap-close {
+    position: absolute;
+    bottom: 10px;
+    color: #aaa;
+    font-size: 14px;
+    text-align: center;
+}
+
 /* Health and Mana Bars - moved down to avoid minimap overlap */
 #health-bar {
     top: 130px !important;

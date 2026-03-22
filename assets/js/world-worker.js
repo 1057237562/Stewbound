@@ -478,23 +478,27 @@ function generateCaves(world) {
 }
 
 function generateOreVein(world, startX, startY, oreType, size) {
-    const stack = [[startX, startY]];
+    const queue = [[startX, startY]];
     const visited = new Set();
     visited.add(`${startX},${startY}`);
 
-    while (stack.length > 0 && visited.size < size * 5) {
-        const [x, y] = stack.pop();
+    while (queue.length > 0 && visited.size < size * 5) {
+        const [x, y] = queue.shift();
 
         if (x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
             if (world[x][y] === BLOCKS.STONE) {
                 world[x][y] = oreType;
 
                 const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+                for (let i = neighbors.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+                }
                 for (const [nx, ny] of neighbors) {
                     const key = `${nx},${ny}`;
                     if (!visited.has(key) && hash2D(nx * 7, ny * 13) > 0.3) {
                         visited.add(key);
-                        stack.push([nx, ny]);
+                        queue.push([nx, ny]);
                     }
                 }
             }
@@ -513,16 +517,16 @@ function generateUndergroundFeatures(world, surfaceHeight) {
             const noiseVal = noise2D(x * 0.5, y * 0.5, oreSeed);
 
             if (depthRatio < 0.4 && noiseVal > 0.85) {
-                generateOreVein(world, x, y, BLOCKS.COAL, 6);
+                generateOreVein(world, x, y, BLOCKS.COAL, 3);
             }
             if (depthRatio > 0.2 && depthRatio < 0.7 && noiseVal > 0.88) {
-                generateOreVein(world, x, y, BLOCKS.IRON_ORE, 7);
+                generateOreVein(world, x, y, BLOCKS.IRON_ORE, 4);
             }
             if (depthRatio > 0.5 && noiseVal > 0.92) {
-                generateOreVein(world, x, y, BLOCKS.GOLD_ORE, 5);
+                generateOreVein(world, x, y, BLOCKS.GOLD_ORE, 3);
             }
             if (depthRatio > 0.8 && noiseVal > 0.96) {
-                generateOreVein(world, x, y, BLOCKS.DIAMOND_ORE, 4);
+                generateOreVein(world, x, y, BLOCKS.DIAMOND_ORE, 2);
             }
         }
     }
@@ -606,40 +610,51 @@ function generateUndergroundFeatures(world, surfaceHeight) {
 function generateWaterFeatures(world, surfaceHeight) {
     const waterSeed = seed + 3000;
 
-    // Underground water pockets
+    // Underground water pockets (elliptical with noise edges)
     for (let i = 0; i < 30; i++) {
         const wx = Math.floor(noise2D(i, 0, waterSeed) * WORLD_WIDTH);
         const wy = 60 + Math.floor(noise2D(i, 1, waterSeed) * (WORLD_HEIGHT - 80));
-        const width = 5 + Math.floor(noise2D(i, 2, waterSeed) * 10);
-        const height = 3 + Math.floor(noise2D(i, 3, waterSeed) * 6);
+        const rx = 3 + Math.floor(noise2D(i, 2, waterSeed) * 6);
+        const ry = 2 + Math.floor(noise2D(i, 3, waterSeed) * 4);
 
-        for (let dx = -width / 2; dx < width / 2; dx++) {
-            for (let dy = 0; dy < height; dy++) {
-                const nx = Math.floor(wx + dx);
-                const ny = wy + dy;
-                if (nx >= 0 && nx < WORLD_WIDTH && ny >= 0 && ny < WORLD_HEIGHT) {
-                    if (world[nx][ny] === BLOCKS.AIR || world[nx][ny] === BLOCKS.STONE) {
-                        world[nx][ny] = BLOCKS.WATER;
+        for (let dx = -rx; dx <= rx; dx++) {
+            for (let dy = -ry; dy <= ry; dy++) {
+                const dist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+                const edgeNoise = noise2D(dx + wx * 3, dy + wy * 3, waterSeed + 500) * 0.3;
+                if (dist <= 1.0 - edgeNoise) {
+                    const nx = Math.floor(wx + dx);
+                    const ny = wy + dy;
+                    if (nx >= 0 && nx < WORLD_WIDTH && ny >= 0 && ny < WORLD_HEIGHT) {
+                        if (world[nx][ny] === BLOCKS.AIR || world[nx][ny] === BLOCKS.STONE) {
+                            world[nx][ny] = BLOCKS.WATER;
+                        }
                     }
                 }
             }
         }
     }
 
-    // Surface lakes
+    // Surface lakes (half-ellipse with noise edges)
     for (let i = 0; i < 5; i++) {
         const lx = 30 + Math.floor(noise2D(i, 4, waterSeed) * (WORLD_WIDTH - 60));
-        const lakeWidth = 10 + Math.floor(noise2D(i, 5, waterSeed) * 15);
-        const lakeDepth = 4 + Math.floor(noise2D(i, 6, waterSeed) * 8);
+        const lakeWidth = 8 + Math.floor(noise2D(i, 5, waterSeed) * 12);
+        const lakeDepth = 4 + Math.floor(noise2D(i, 6, waterSeed) * 6);
+        const rx = lakeWidth / 2;
+        const ry = lakeDepth;
 
-        for (let dx = -lakeWidth / 2; dx < lakeWidth / 2; dx++) {
+        for (let dx = -Math.ceil(rx); dx <= Math.ceil(rx); dx++) {
             const nx = Math.floor(lx + dx);
             if (nx >= 0 && nx < WORLD_WIDTH) {
                 const sy = surfaceHeight[nx];
-                for (let dy = 0; dy < lakeDepth; dy++) {
-                    const ny = sy + dy;
-                    if (ny >= 0 && ny < WORLD_HEIGHT) {
-                        world[nx][ny] = BLOCKS.WATER;
+                const normalizedX = dx / rx;
+                const maxY = Math.ceil(ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX)));
+                for (let dy = 0; dy <= maxY; dy++) {
+                    const edgeNoise = noise2D(dx + lx * 3, dy, waterSeed + 500) * 0.3;
+                    if (dy <= maxY * (1.0 - edgeNoise)) {
+                        const ny = sy + dy;
+                        if (ny >= 0 && ny < WORLD_HEIGHT) {
+                            world[nx][ny] = BLOCKS.WATER;
+                        }
                     }
                 }
             }

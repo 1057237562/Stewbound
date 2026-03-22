@@ -195,6 +195,7 @@ class GameState {
         this.day = 1;
         this.isNight = false;
         this.inventoryOpen = false;
+        this.fullMapOpen = false;
         this.isPaused = false;
         this.seed = Math.random() * 10000;
 
@@ -1008,22 +1009,22 @@ class GameState {
 
                 // Coal - common, shallow
                 if (depthRatio < 0.4 && noiseVal > 0.85) {
-                    this.generateOreVein(x, y, BLOCKS.COAL, 6);
+                    this.generateOreVein(x, y, BLOCKS.COAL, 3);
                 }
 
                 // Iron - common, medium depth
                 if (depthRatio > 0.2 && depthRatio < 0.7 && noiseVal > 0.88) {
-                    this.generateOreVein(x, y, BLOCKS.IRON_ORE, 7);
+                    this.generateOreVein(x, y, BLOCKS.IRON_ORE, 4);
                 }
 
                 // Gold - rare, deep
                 if (depthRatio > 0.5 && noiseVal > 0.92) {
-                    this.generateOreVein(x, y, BLOCKS.GOLD_ORE, 5);
+                    this.generateOreVein(x, y, BLOCKS.GOLD_ORE, 3);
                 }
 
                 // Diamond - very rare, very deep
                 if (depthRatio > 0.8 && noiseVal > 0.96) {
-                    this.generateOreVein(x, y, BLOCKS.DIAMOND_ORE, 4);
+                    this.generateOreVein(x, y, BLOCKS.DIAMOND_ORE, 2);
                 }
             }
         }
@@ -1106,24 +1107,27 @@ class GameState {
     }
 
     generateOreVein(startX, startY, oreType, size) {
-        const stack = [[startX, startY]];
+        const queue = [[startX, startY]];
         const visited = new Set();
         visited.add(`${startX},${startY}`);
 
-        while (stack.length > 0 && visited.size < size * 5) {
-            const [x, y] = stack.pop();
+        while (queue.length > 0 && visited.size < size * 5) {
+            const [x, y] = queue.shift();
 
             if (x >= 0 && x < WORLD_WIDTH && y >= 0 && y < WORLD_HEIGHT) {
                 if (this.world[x][y] === BLOCKS.STONE) {
                     this.world[x][y] = oreType;
 
-                    // Add neighbors with probability
                     const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+                    for (let i = neighbors.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+                    }
                     for (const [nx, ny] of neighbors) {
                         const key = `${nx},${ny}`;
                         if (!visited.has(key) && Math.random() > 0.3) {
                             visited.add(key);
-                            stack.push([nx, ny]);
+                            queue.push([nx, ny]);
                         }
                     }
                 }
@@ -1134,42 +1138,51 @@ class GameState {
     generateWaterFeatures(surfaceHeight) {
         const waterSeed = this.seed + 3000;
 
-        // Generate underground water pockets
+        // Generate underground water pockets (elliptical with noise edges)
         for (let i = 0; i < 30; i++) {
             const wx = Math.floor(this.noise2D(i, 0, waterSeed) * WORLD_WIDTH);
             const wy = 60 + Math.floor(this.noise2D(i, 1, waterSeed) * (WORLD_HEIGHT - 80));
-            const width = 5 + Math.floor(this.noise2D(i, 2, waterSeed) * 10);
-            const height = 3 + Math.floor(this.noise2D(i, 3, waterSeed) * 6);
+            const rx = 3 + Math.floor(this.noise2D(i, 2, waterSeed) * 6);
+            const ry = 2 + Math.floor(this.noise2D(i, 3, waterSeed) * 4);
 
-            for (let dx = -width / 2; dx < width / 2; dx++) {
-                for (let dy = 0; dy < height; dy++) {
-                    const nx = Math.floor(wx + dx);
-                    const ny = wy + dy;
-                    if (nx >= 0 && nx < WORLD_WIDTH && ny >= 0 && ny < WORLD_HEIGHT) {
-                        if (this.world[nx][ny] === BLOCKS.AIR || this.world[nx][ny] === BLOCKS.STONE) {
-                            this.world[nx][ny] = BLOCKS.WATER;
+            for (let dx = -rx; dx <= rx; dx++) {
+                for (let dy = -ry; dy <= ry; dy++) {
+                    const dist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+                    const edgeNoise = this.noise2D(dx + wx * 3, dy + wy * 3, waterSeed + 500) * 0.3;
+                    if (dist <= 1.0 - edgeNoise) {
+                        const nx = Math.floor(wx + dx);
+                        const ny = wy + dy;
+                        if (nx >= 0 && nx < WORLD_WIDTH && ny >= 0 && ny < WORLD_HEIGHT) {
+                            if (this.world[nx][ny] === BLOCKS.AIR || this.world[nx][ny] === BLOCKS.STONE) {
+                                this.world[nx][ny] = BLOCKS.WATER;
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Generate surface lakes
+        // Generate surface lakes (half-ellipse with noise edges)
         for (let i = 0; i < 5; i++) {
             const lx = 30 + Math.floor(this.noise2D(i, 4, waterSeed) * (WORLD_WIDTH - 60));
-            let ly = surfaceHeight[lx];
-            const lakeWidth = 10 + Math.floor(this.noise2D(i, 5, waterSeed) * 15);
-            const lakeDepth = 4 + Math.floor(this.noise2D(i, 6, waterSeed) * 8);
+            const lakeWidth = 8 + Math.floor(this.noise2D(i, 5, waterSeed) * 12);
+            const lakeDepth = 4 + Math.floor(this.noise2D(i, 6, waterSeed) * 6);
+            const rx = lakeWidth / 2;
+            const ry = lakeDepth;
 
-            for (let dx = -lakeWidth / 2; dx < lakeWidth / 2; dx++) {
+            for (let dx = -Math.ceil(rx); dx <= Math.ceil(rx); dx++) {
                 const nx = Math.floor(lx + dx);
                 if (nx >= 0 && nx < WORLD_WIDTH) {
-                    // Find surface at this x
-                    let sy = surfaceHeight[nx];
-                    for (let dy = 0; dy < lakeDepth; dy++) {
-                        const ny = sy + dy;
-                        if (ny >= 0 && ny < WORLD_HEIGHT) {
-                            this.world[nx][ny] = BLOCKS.WATER;
+                    const sy = surfaceHeight[nx];
+                    const normalizedX = dx / rx;
+                    const maxY = Math.ceil(ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX)));
+                    for (let dy = 0; dy <= maxY; dy++) {
+                        const edgeNoise = this.noise2D(dx + lx * 3, dy, waterSeed + 500) * 0.3;
+                        if (dy <= maxY * (1.0 - edgeNoise)) {
+                            const ny = sy + dy;
+                            if (ny >= 0 && ny < WORLD_HEIGHT) {
+                                this.world[nx][ny] = BLOCKS.WATER;
+                            }
                         }
                     }
                 }
@@ -1472,6 +1485,8 @@ class GameScene extends Phaser.Scene {
         this.lastRenderPos = new Phaser.Math.Vector2(0, 0);
         this.initialized = false;
         this.needsInitialRender = false;
+        this.isAttacking = false;
+        this.attackCooldown = 0;
     }
 
     preload() {
@@ -1609,7 +1624,13 @@ class GameScene extends Phaser.Scene {
             const tileY = Math.floor(worldY / TILE_SIZE);
 
             if (pointer.leftButtonDown()) {
-                this.startMining(tileX, tileY);
+                const heldItem = this.gameState.hotbar[this.gameState.selectedSlot];
+                if (heldItem && heldItem.type === 'weapon') {
+                    this.isAttacking = true;
+                    this.attackWithSword();
+                } else {
+                    this.startMining(tileX, tileY);
+                }
             } else if (pointer.rightButtonDown()) {
                 this.placeBlock(tileX, tileY);
             }
@@ -1617,6 +1638,7 @@ class GameScene extends Phaser.Scene {
 
         this.input.on('pointerup', () => {
             this.stopMining();
+            this.isAttacking = false;
         });
 
         // Initialize UI
@@ -1773,9 +1795,13 @@ class GameScene extends Phaser.Scene {
                 this.selectSlot(parseInt(e.key) - 1);
             } else if (e.key.toLowerCase() === 'e') {
                 if (!this.gameState.isPaused) this.toggleInventory();
+            } else if (e.key.toLowerCase() === 'm') {
+                if (!this.gameState.isPaused) this.toggleFullMap();
             } else if (e.key === 'Escape') {
                 if (this.gameState.inventoryOpen) {
                     this.toggleInventory();
+                } else if (this.gameState.fullMapOpen) {
+                    this.toggleFullMap();
                 } else {
                     this.togglePause();
                 }
@@ -1878,6 +1904,95 @@ class GameScene extends Phaser.Scene {
         this.updateUI();
     }
 
+    toggleFullMap() {
+        if (this.gameState.isPaused) return;
+        this.gameState.fullMapOpen = !this.gameState.fullMapOpen;
+        const fullmapEl = document.getElementById('fullmap');
+        if (!fullmapEl) return;
+        fullmapEl.style.display = this.gameState.fullMapOpen ? 'flex' : 'none';
+        if (this.gameState.fullMapOpen) {
+            this.renderFullMap();
+        }
+    }
+
+    renderFullMap() {
+        const canvas = document.getElementById('fullmap-canvas');
+        if (!canvas) return;
+
+        // Set canvas size to match world aspect ratio
+        const maxWidth = window.innerWidth * 0.75;
+        const maxHeight = window.innerHeight * 0.75;
+        const worldAspect = WORLD_WIDTH / WORLD_HEIGHT;
+
+        let width, height;
+        if (maxWidth / maxHeight > worldAspect) {
+            height = maxHeight;
+            width = height * worldAspect;
+        } else {
+            width = maxWidth;
+            height = width / worldAspect;
+        }
+
+        canvas.width = Math.floor(width);
+        canvas.height = Math.floor(height);
+
+        const ctx = canvas.getContext('2d');
+        const scaleX = canvas.width / WORLD_WIDTH;
+        const scaleY = canvas.height / WORLD_HEIGHT;
+
+        // Clear and draw sky background
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Render world blocks
+        for (let x = 0; x < WORLD_WIDTH; x++) {
+            for (let y = 0; y < WORLD_HEIGHT; y++) {
+                const block = this.gameState.getBlock(x, y);
+                const waterLevel = this.gameState.getWaterLevel(x, y);
+
+                if (block !== BLOCKS.AIR) {
+                    const colorHex = BLOCK_COLORS[block] || 0x808080;
+                    const r = (colorHex >> 16) & 0xFF;
+                    const g = (colorHex >> 8) & 0xFF;
+                    const b = colorHex & 0xFF;
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    ctx.fillRect(
+                        Math.floor(x * scaleX),
+                        Math.floor(y * scaleY),
+                        Math.ceil(scaleX),
+                        Math.ceil(scaleY)
+                    );
+                } else if (waterLevel > WATER_MIN) {
+                    const alpha = Math.min(0.8, waterLevel * 0.8);
+                    ctx.fillStyle = `rgba(30, 144, 255, ${alpha})`;
+                    ctx.fillRect(
+                        Math.floor(x * scaleX),
+                        Math.floor(y * scaleY),
+                        Math.ceil(scaleX),
+                        Math.ceil(scaleY)
+                    );
+                }
+            }
+        }
+
+        // Update player position indicator
+        if (this.player) {
+            const playerTileX = Math.floor(this.player.x / TILE_SIZE);
+            const playerTileY = Math.floor(this.player.y / TILE_SIZE);
+            const playerX = playerTileX * scaleX;
+            const playerY = playerTileY * scaleY;
+
+            const playerIndicator = document.getElementById('fullmap-player');
+            const fullmapEl = document.getElementById('fullmap');
+            if (playerIndicator && fullmapEl) {
+                const canvasRect = canvas.getBoundingClientRect();
+                const fullmapRect = fullmapEl.getBoundingClientRect();
+                playerIndicator.style.left = `${canvasRect.left - fullmapRect.left + playerX}px`;
+                playerIndicator.style.top = `${canvasRect.top - fullmapRect.top + playerY}px`;
+            }
+        }
+    }
+
     togglePause() {
         this.gameState.isPaused = !this.gameState.isPaused;
         document.getElementById('pause-menu').style.display =
@@ -1977,6 +2092,78 @@ class GameScene extends Phaser.Scene {
             this.miningIndicator.destroy();
             this.miningIndicator = null;
         }
+    }
+
+    attackWithSword() {
+        const heldItem = this.gameState.hotbar[this.gameState.selectedSlot];
+        if (!heldItem || heldItem.type !== 'weapon') return;
+
+        this.attackCooldown = 300; // Reset cooldown
+
+        const attackRange = 50;
+        const swordDamage = heldItem.damage || 10;
+
+        // Determine attack direction based on mouse position relative to player
+        const pointer = this.input.activePointer;
+        const attackDir = pointer.worldX > this.player.x ? 1 : -1;
+
+        // Visual feedback - swing arc
+        this.showSwordSwing(attackDir);
+
+        // Check for enemies in range
+        this.enemies.forEach(enemy => {
+            if (!enemy.active) return;
+            const dx = enemy.x - this.player.x;
+            const dy = enemy.y - this.player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Hit if enemy is within range and in front of player
+            if (distance < attackRange && Math.sign(dx) === attackDir) {
+                enemy.health -= swordDamage;
+
+                // Knockback
+                enemy.setVelocityX(attackDir * 150);
+                enemy.setVelocityY(-50);
+
+                // Flash enemy red
+                enemy.setTint(0xff0000);
+                this.time.delayedCall(100, () => {
+                    if (enemy.active) enemy.clearTint();
+                });
+
+                // Enemy death
+                if (enemy.health <= 0) {
+                    this.spawnDeathParticles(enemy.x, enemy.y);
+                    enemy.destroy();
+                }
+            }
+        });
+    }
+
+    showSwordSwing(direction) {
+        // Create a simple swing arc visual
+        const swingGraphics = this.add.graphics();
+        swingGraphics.setDepth(15);
+        swingGraphics.lineStyle(3, 0xffffff, 0.8);
+
+        const startX = this.player.x + direction * 10;
+        const startY = this.player.y - 10;
+        const radius = 40;
+
+        // Draw arc
+        const startAngle = direction === 1 ? -Math.PI / 3 : Math.PI * 2 / 3;
+        const endAngle = direction === 1 ? Math.PI / 3 : Math.PI * 4 / 3;
+        swingGraphics.beginPath();
+        swingGraphics.arc(startX, startY, radius, startAngle, endAngle);
+        swingGraphics.strokePath();
+
+        // Fade out and destroy
+        this.tweens.add({
+            targets: swingGraphics,
+            alpha: 0,
+            duration: 150,
+            onComplete: () => swingGraphics.destroy()
+        });
     }
 
     mineBlock(delta) {
@@ -2193,6 +2380,25 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    spawnDeathParticles(x, y) {
+        for (let i = 0; i < 12; i++) {
+            const particle = this.add.rectangle(x, y, 5, 5, 0xff4444);
+            particle.setDepth(20);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 60 + Math.random() * 120;
+
+            this.tweens.add({
+                targets: particle,
+                x: particle.x + Math.cos(angle) * speed,
+                y: particle.y + Math.sin(angle) * speed - 30,
+                alpha: 0,
+                duration: 600,
+                onComplete: () => particle.destroy()
+            });
+        }
+    }
+
     spawnEnemy() {
         if (!this.gameState.isNight) return;
         if (this.enemies.length >= 10) return;
@@ -2300,6 +2506,15 @@ class GameScene extends Phaser.Scene {
 
         // Handle mining
         this.mineBlock(delta);
+
+        // Handle continuous sword attack
+        if (this.isAttacking) {
+            this.attackCooldown -= delta;
+            if (this.attackCooldown <= 0) {
+                this.attackWithSword();
+                this.attackCooldown = 300; // 300ms between swings
+            }
+        }
 
         // Update enemies
         this.updateEnemies(delta);
